@@ -135,62 +135,100 @@ func GetEmployee(c *gin.Context) {
 
 	share.RespondDate(c, http.StatusOK, employees)
 }
+
 func UpdateEmployee(c *gin.Context) {
 	id := c.Param("id")
 
 	var updateemployee models.EmployeeRequestUpdate
+
 	var employeeprofile models.EmployeeProfile
 
 	// Parse form data
 	if err := c.ShouldBind(&updateemployee); err != nil {
+
 		share.RespondError(c, http.StatusBadRequest, err.Error())
+
 		return
 	}
 
 	// Find employee profile
 	if err := config.DB.Where("employee_id = ?", id).First(&employeeprofile).Error; err != nil {
+
 		share.RespondError(c, http.StatusNotFound, "Employee profile not found")
+
 		return
 	}
 
 	// Update Employee main info
 	result := config.DB.Model(&models.Employee{}).Where("id = ?", id).Updates(map[string]interface{}{
-		"branch_id":          updateemployee.BranchID,
-		"name_en":            updateemployee.NameEn,
-		"name_kh":            updateemployee.NameKh,
-		"gender":             updateemployee.Gender,
-		"contact":            updateemployee.Contact,
+
+		"branch_id": updateemployee.BranchID,
+
+		"name_en": updateemployee.NameEn,
+
+		"name_kh": updateemployee.NameKh,
+
+		"gender": updateemployee.Gender,
+
+		"contact": updateemployee.Contact,
+
 		"national_id_number": updateemployee.NationalIDNumber,
-		"role_id":            updateemployee.RoleID,
-		"hire_date":          updateemployee.HireDate,
-		"promote_date":       updateemployee.PromoteDate,
-		"type":               updateemployee.Type,
+
+		"role_id": updateemployee.RoleID,
+
+		"hire_date": updateemployee.HireDate,
+
+		"promote_date": updateemployee.PromoteDate,
+
+		"type": updateemployee.Type,
 	})
 
 	if result.Error != nil {
+
 		share.RespondError(c, http.StatusInternalServerError, "Failed to update employee")
+
 		return
 	}
 
 	// Handle profile image upload
+
 	file, err := c.FormFile("profileimage")
+
 	if err == nil {
+
+		if !helper.ProtectImage(file) {
+
+			share.RespondError(c, http.StatusBadRequest, "Image Not Allow")
+
+			return
+		}
+
 		oldProfilePath := filepath.Join("public/profileimage", employeeprofile.ProfileImage)
+
 		if _, err := os.Stat(oldProfilePath); err == nil {
+
 			os.Remove(oldProfilePath)
+
 		}
 
 		profileImageDir := "public/profileimage"
+
 		if _, err := os.Stat(profileImageDir); os.IsNotExist(err) {
+
 			os.MkdirAll(profileImageDir, os.ModePerm)
+
 		}
 
 		extension := filepath.Ext(file.Filename)
+
 		newProfileImageName := fmt.Sprintf("%d%s", time.Now().UnixNano(), extension)
+
 		profileImagePath := filepath.Join(profileImageDir, newProfileImageName)
 
 		if err := c.SaveUploadedFile(file, profileImagePath); err != nil {
+
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload new image"})
+
 			return
 		}
 
@@ -199,24 +237,44 @@ func UpdateEmployee(c *gin.Context) {
 
 	// Handle QR code image upload
 	qrFile, err := c.FormFile("qrcodeimage")
+
 	if err == nil {
+
+		if !helper.ProtectImage(file) {
+
+			share.RespondError(c, http.StatusBadRequest, "Image Not Allow")
+
+			return
+		}
+
 		oldQRPath := filepath.Join("public/qrcodeimage", employeeprofile.QrCodeBankAccount)
+
 		if _, err := os.Stat(oldQRPath); err == nil {
+
 			os.Remove(oldQRPath)
+
 		}
 
 		qrImageDir := "public/qrcodeimage"
+
 		if _, err := os.Stat(qrImageDir); os.IsNotExist(err) {
+
 			os.MkdirAll(qrImageDir, os.ModePerm)
+
 		}
 
 		extension := filepath.Ext(qrFile.Filename)
+
 		newQRImageName := fmt.Sprintf("%d%s", time.Now().UnixNano(), extension)
+
 		qrImagePath := filepath.Join(qrImageDir, newQRImageName)
 
 		if err := c.SaveUploadedFile(qrFile, qrImagePath); err != nil {
+
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload new QR image"})
+
 			return
+
 		}
 
 		employeeprofile.QrCodeBankAccount = newQRImageName
@@ -224,19 +282,31 @@ func UpdateEmployee(c *gin.Context) {
 
 	// Update profile fields
 	employeeprofile.DateOfBirth = updateemployee.DateOfBirth
+
 	employeeprofile.VillageIDOfBirht = updateemployee.VillageIDOfBirht
+
 	employeeprofile.MaterialStatus = updateemployee.MaterialStatus
+
 	employeeprofile.VillageIDCurrentAddress = updateemployee.VillageIDCurrentAddress
+
 	employeeprofile.FamilyPhone = updateemployee.FamilyPhone
+
 	employeeprofile.EducationLevel = updateemployee.EducationLevel
+
 	employeeprofile.ExperienceYear = updateemployee.ExperienceYear
+
 	employeeprofile.PreviousComapy = updateemployee.PreviousComapy
+
 	employeeprofile.BankName = updateemployee.BankName
+
 	employeeprofile.Note = updateemployee.Note
+
 	employeeprofile.PositionLevel = updateemployee.PositionLevel
 
 	if err := config.DB.Save(&employeeprofile).Error; err != nil {
+
 		share.RespondError(c, http.StatusInternalServerError, "Failed to update employee profile")
+
 		return
 	}
 

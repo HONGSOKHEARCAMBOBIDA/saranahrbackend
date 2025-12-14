@@ -3,6 +3,7 @@ package controller
 import (
 	"HRbackend/config"
 	"HRbackend/constant/share"
+	"HRbackend/helper"
 	models "HRbackend/model"
 	"HRbackend/utils"
 	"fmt"
@@ -114,6 +115,12 @@ func Register(c *gin.Context) {
 		return
 	}
 
+	if !helper.ProtectImage(file) {
+
+		share.RespondError(c, http.StatusBadRequest, "Only PNG and JPG images are allowed for Profile Image")
+
+	}
+
 	profileimageDir := "public/profileimage"
 
 	if _, err := os.Stat(profileimageDir); os.IsNotExist(err) {
@@ -143,6 +150,15 @@ func Register(c *gin.Context) {
 
 		return
 	}
+
+	if !helper.ProtectImage(fileqrcode) {
+
+		share.RespondError(c, http.StatusBadRequest, "Only PNG and JPG images are allowed for QR Code")
+
+		return
+
+	}
+
 	qrcodeimageDir := "public/qrcodeimage"
 
 	if _, err := os.Stat(qrcodeimageDir); os.IsNotExist(err) {
@@ -167,7 +183,7 @@ func Register(c *gin.Context) {
 
 	if tx.Error != nil {
 
-		c.JSON(500, gin.H{"error": tx.Error.Error()})
+		share.RespondError(c, 500, tx.Error.Error())
 
 		return
 	}
@@ -267,7 +283,7 @@ func Register(c *gin.Context) {
 
 		tx.Rollback()
 
-		c.JSON(500, gin.H{"error": err.Error()})
+		share.RespondError(c, 500, tx.Error.Error())
 
 		return
 	}
@@ -314,7 +330,8 @@ func Register(c *gin.Context) {
 
 	tx.Commit()
 
-	c.JSON(201, gin.H{"message": "User registered successfully"})
+	share.ResponeSuccess(c, 201, "ចុះឈ្មោះបានជោគជ័យ")
+
 }
 
 func ChangeStatusUser(c *gin.Context) {
@@ -348,6 +365,7 @@ func ChangeStatusUser(c *gin.Context) {
 
 	share.RespondDate(c, 200, result)
 }
+
 func UpdateUser(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))

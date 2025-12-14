@@ -21,10 +21,13 @@ type AttendanceLog struct {
 }
 
 type AttendanceLogRequestCreate struct {
-	EmployeeShiftID int     `json:"employee_shift_id"`
-	Latitude        float64 `json:"latitude"`
-	Longitude       float64 `json:"longitude"`
-	Notes           string  `json:"notes"`
+	EmployeeShiftID int `json:"employee_shift_id" binding:"required"`
+
+	Latitude float64 `json:"latitude" binding:"required"`
+
+	Longitude float64 `json:"longitude" binding:"required"`
+
+	Notes string `json:"notes"`
 }
 type AttendanceResponse struct {
 	ID                int    `json:"id"`

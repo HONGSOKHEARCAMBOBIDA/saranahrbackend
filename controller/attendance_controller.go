@@ -16,106 +16,157 @@ import (
 
 // 📍 Check In Function
 func CheckIn(c *gin.Context) {
+
 	var req models.AttendanceLogRequestCreate
+
 	userID, ok := helper.GetUserID(c)
+
 	if !ok {
+
 		share.RespondError(c, http.StatusUnauthorized, "Please Login")
+
 		return
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
+
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+
 		return
 	}
 
 	// Step 1: Find EmployeeShift
 	var empShift models.EmployeeShift
+
 	if err := config.DB.First(&empShift, req.EmployeeShiftID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Employee shift not found"})
+
+		share.RespondError(c, http.StatusNotFound, "Employee Shift Not Found")
+
 		return
 	}
 
 	// Step 2: Find shift
 	var shift models.Shift
+
 	if err := config.DB.First(&shift, empShift.ShiftID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Shift not found"})
+
+		share.RespondError(c, http.StatusNotFound, "Shift Not Found")
+
 		return
 	}
 
 	// Step 3: Find branch
 	var branch models.Branch
+
 	if err := config.DB.First(&branch, shift.BranchID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Branch not found"})
+
+		share.RespondError(c, http.StatusNotFound, "Branch Not Found")
+
 		return
 	}
 
 	// Step 4: Calculate distance
 	distance := utils.CalculateDistance(branch.Latitude, branch.Longitude, req.Latitude, req.Longitude)
+
 	currentDate := time.Now().Format("2006-01-02")
 
 	// Step 5: Prevent duplicate check-in
 	var existingLog models.AttendanceLog
-	if err := config.DB.
-		Where("employee_shift_id = ? AND check_date = ?", req.EmployeeShiftID, currentDate).
+
+	if err := config.DB.Where("employee_shift_id = ? AND check_date = ?", req.EmployeeShiftID, currentDate).
 		First(&existingLog).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "You have already checked in today"})
+
+		share.RespondError(c, http.StatusNotFound, "You have already checked in today")
+
 		return
 	}
 
 	// Step 6: Check lateness
 	layout := "15:04:05"
+
 	now := time.Now()
+
 	startTime, _ := time.Parse(layout, shift.StartTime)
+
 	isLate := 0
+
 	if now.After(startTime) {
+
 		isLate = 1
+
 	}
 
 	// Step 7: Create log (inside or outside zone)
 	isInZone := distance <= branch.Radius
 
 	log := models.AttendanceLog{
-		EmployeeShiftID:  req.EmployeeShiftID,
-		CheckDate:        currentDate,
-		CheckIn:          now.Format("15:04:05"),
-		Islate:           isLate,
-		BranchID:         branch.ID,
-		Status:           1,
-		ISZoonCheckIn:    isInZone, // ✅ true if inside zone, false if outside
-		ISZoonCheckOut:   true,
-		LatitudeCheckIn:  req.Latitude,
+
+		EmployeeShiftID: req.EmployeeShiftID,
+
+		CheckDate: currentDate,
+
+		CheckIn: now.Format("15:04:05"),
+
+		Islate: isLate,
+
+		BranchID: branch.ID,
+
+		Status: 1,
+
+		ISZoonCheckIn: isInZone, // ✅ true if inside zone, false if outside
+
+		ISZoonCheckOut: true,
+
+		LatitudeCheckIn: req.Latitude,
+
 		LongitudeCheckIn: req.Longitude,
-		Notes:            req.Notes,
-		CreateBy:         userID,
+
+		Notes: req.Notes,
+
+		CreateBy: userID,
 	}
 
 	if err := config.DB.Create(&log).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
+		share.RespondError(c, http.StatusInternalServerError, err.Error())
+
 		return
 	}
 
 	var singleemployee models.Employee
-	if err := config.DB.
-		Where("id = ?", empShift.EmployeeID).
-		First(&singleemployee).Error; err != nil {
+
+	if err := config.DB.Where("id = ?", empShift.EmployeeID).First(&singleemployee).Error; err != nil {
+
 		share.RespondError(c, http.StatusNotFound, err.Error())
+
 		return
 	}
+
 	workTime := fmt.Sprintf("%s - %s", shift.StartTime, shift.EndTime)
 
-	mapURL := fmt.Sprintf(
-		"https://www.google.com/maps?q=%f,%f",
+	mapURL := fmt.Sprintf("https://www.google.com/maps?q=%f,%f",
+
 		req.Latitude,
+
 		req.Longitude,
 	)
+
 	lateText := "⏰ ស្កែនទាន់ម៉ោង"
+
 	if isLate == 1 {
+
 		lateText = "🔴 ចូលធ្វេីការយឺត"
+
 	}
+
 	zoneText := "📍 ស្កែនក្នុងតំបន់ក្រុមហ៊ុន"
+
 	if !isInZone {
+
 		zoneText = "⚠️ ស្កែនក្រៅតំបន់ក្រុមហ៊ុន"
+
 	}
+
 	message := fmt.Sprintf(
 
 		"🟢 <b>CHECK IN</b>\n\n"+

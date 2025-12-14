@@ -33,9 +33,9 @@ type UserReqInsert struct {
 
 	UserName string `form:"username"`
 
-	Email string `form:"email"`
+	Email string `form:"email" binding:"required,email"`
 
-	Password string `form:"password" binding:"required"`
+	Password string `form:"password" binding:"required,min=8"`
 
 	Gender int `form:"gender" binding:"required"`
 

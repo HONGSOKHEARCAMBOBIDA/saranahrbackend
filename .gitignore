@@ -1,0 +1,20 @@
+cat <<EOF > .gitignore
+.env
+
+# binaries & installers
+*.deb
+*.exe
+*.zip
+*.out
+
+# go build output
+tmp/
+
+# uploads
+public/qrcodeimage/
+public/profileimage/
+
+# deps
+node_modules/
+vendor/
+EOF

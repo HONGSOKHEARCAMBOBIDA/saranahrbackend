@@ -1,6 +1,10 @@
 package middleware
 
 import (
+	"HRbackend/config"
+	"HRbackend/constant/share"
+	"HRbackend/helper"
+	models "HRbackend/model"
 	"HRbackend/utils"
 	"net/http" // HTTP status codes
 	"strings"
@@ -13,6 +17,7 @@ import (
 func AuthMiddleware() gin.HandlerFunc {
 	// Return the actual middleware handler function
 	return func(c *gin.Context) {
+
 		// 1. Check for Authorization header
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -59,6 +64,24 @@ func AuthMiddleware() gin.HandlerFunc {
 			// Set role_id from claims to Gin context
 			c.Set("role_id", claims["role_id"])
 			// You can add more claims here as needed
+		}
+
+		userID, ok := helper.GetUserID(c)
+
+		if !ok {
+
+			share.RespondError(c, http.StatusUnauthorized, "Please Login")
+			c.Abort()
+			return
+		}
+
+		var user models.User
+
+		if err := config.DB.Where("id = ? AND is_active = ?", userID, 1).First(&user).Error; err != nil {
+
+			c.AbortWithStatusJSON(403, gin.H{"message": "User is not active"})
+
+			return
 		}
 
 		// 5. If everything is valid, proceed to the next handler

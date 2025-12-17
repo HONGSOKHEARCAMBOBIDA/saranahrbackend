@@ -32,10 +32,24 @@ func Login(c *gin.Context) {
 
 	// Find user by phone
 	var user models.User
+	var userpart []models.UserPartResponse
 
 	if err := config.DB.Where("(contact = ? OR email = ? OR username = ?) AND is_active = ?", req.Contact, req.Contact, req.Contact, 1).First(&user).Error; err != nil {
 
-		share.RespondError(c, http.StatusNotFound, err.Error())
+		share.RespondError(c, http.StatusUnauthorized, err.Error())
+
+		return
+	}
+
+	err := config.DB.Table("user_parts up").
+		Select("up.id AS id,p.id AS part_id, p.name AS part_name").
+		Joins("JOIN parts p ON p.id = up.part_id").
+		Where("up.user_id = ?", user.ID).
+		Scan(&userpart).Error
+
+	if err != nil {
+
+		share.RespondError(c, http.StatusInternalServerError, err.Error())
 
 		return
 	}
@@ -49,7 +63,7 @@ func Login(c *gin.Context) {
 	}
 
 	// JWT Token generation
-	expirationTime := time.Now().Add(7 * 24 * time.Hour)
+	expirationTime := time.Now().Add(1 * 24 * time.Hour)
 
 	claims := jwt.MapClaims{
 
@@ -88,6 +102,8 @@ func Login(c *gin.Context) {
 			"phone": user.Contact,
 
 			"role_id": user.RoleID,
+
+			"parts": userpart,
 		},
 		"token": tokenStr,
 	})
@@ -288,6 +304,26 @@ func Register(c *gin.Context) {
 		return
 	}
 
+	if len(input.PartIDs) > 0 {
+
+		for _, part := range input.PartIDs {
+
+			if err := tx.Create(&models.UserPart{
+
+				UserID: int(user.ID),
+
+				PartID: part,
+			}).Error; err != nil {
+
+				tx.Rollback()
+
+				share.RespondError(c, http.StatusInternalServerError, err.Error())
+
+				return
+			}
+		}
+	}
+
 	employeeshift := models.EmployeeShift{
 
 		EmployeeID: int(emp.ID),
@@ -386,27 +422,76 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	result := config.DB.Model(&models.User{}).Where("id = ?", id).Updates(map[string]interface{}{
+	tx := config.DB.Begin()
 
-		"branch_id": updateuser.BranchID,
+	if tx.Error != nil {
 
-		"username": updateuser.UserName,
-
-		"email": updateuser.Email,
-
-		"contact": updateuser.Contact,
-
-		"role_id": updateuser.RoleID,
-	})
-
-	if result.RowsAffected == 0 {
-
-		share.RespondError(c, http.StatusBadRequest, "អ្នកប្រេីប្រាស់រកមិនឃេីញឬមិនមានអ្វីត្រូវកែ")
+		share.RespondError(c, http.StatusInternalServerError, tx.Error.Error())
 
 		return
 	}
 
-	share.ResponeSuccess(c, http.StatusOK, "អ្នកប្រេីប្រាស់ត្រូវបានកែប្រែ")
+	// 1️⃣ Update user
+	result := tx.Model(&models.User{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+
+			"branch_id": updateuser.BranchID,
+			"username":  updateuser.UserName,
+			"email":     updateuser.Email,
+			"contact":   updateuser.Contact,
+			"role_id":   updateuser.RoleID,
+		})
+
+	if result.Error != nil {
+
+		tx.Rollback()
+
+		share.RespondError(c, http.StatusInternalServerError, result.Error.Error())
+
+		return
+	}
+
+	if result.RowsAffected == 0 {
+
+		tx.Rollback()
+
+		share.RespondError(c, http.StatusBadRequest, "អ្នកប្រើប្រាស់រកមិនឃើញ")
+
+		return
+	}
+
+	// 2️⃣ Delete old parts
+	if err := tx.Where("user_id = ?", id).
+		Delete(&models.UserPart{}).Error; err != nil {
+
+		tx.Rollback()
+
+		share.RespondError(c, http.StatusInternalServerError, err.Error())
+
+		return
+	}
+
+	// 3️⃣ Insert new parts
+	for _, partID := range updateuser.PartIDs {
+
+		if err := tx.Create(&models.UserPart{
+
+			UserID: id,
+			PartID: partID,
+		}).Error; err != nil {
+
+			tx.Rollback()
+
+			share.RespondError(c, http.StatusInternalServerError, err.Error())
+
+			return
+		}
+	}
+
+	tx.Commit()
+
+	share.ResponeSuccess(c, http.StatusOK, "អ្នកប្រើប្រាស់ត្រូវបានកែប្រែ")
 }
 
 func GetUser(c *gin.Context) {
@@ -476,13 +561,48 @@ func GetUser(c *gin.Context) {
 
 	}
 
-	db = db.Order("id desc")
-
-	if err := db.Scan(&users).Error; err != nil {
-
+	if err := db.Order("users.id DESC").Scan(&users).Error; err != nil {
 		share.RespondError(c, http.StatusInternalServerError, err.Error())
-
 		return
+	}
+
+	if len(users) > 0 {
+		userIDs := make([]int, 0, len(users))
+		for _, u := range users {
+			userIDs = append(userIDs, u.Id)
+		}
+		type partRow struct {
+			UserID   int
+			ID       int
+			PartID   int
+			PartName string
+		}
+		var rows []partRow
+		if err := config.DB.Raw(`
+		
+		SELECT up.user_id,up.id,p.id AS part_id,p.name AS part_name FROM user_parts up
+
+		JOIN parts p ON p.id = up.part_id WHERE up.user_id IN (?)
+
+		`, userIDs).Scan(&rows).Error; err != nil {
+			share.RespondError(c, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		partMap := make(map[int][]models.UserPartResponse)
+
+		for _, r := range rows {
+			partMap[r.UserID] = append(partMap[r.UserID], models.UserPartResponse{
+				ID:       r.ID,
+				PartID:   r.PartID,
+				PartName: r.PartName,
+			})
+		}
+
+		for i := range users {
+			users[i].UserPartResponse = partMap[users[i].Id]
+		}
+
 	}
 
 	share.RespondDate(c, http.StatusOK, users)

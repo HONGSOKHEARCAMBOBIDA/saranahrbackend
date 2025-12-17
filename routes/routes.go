@@ -172,5 +172,10 @@ func SetupRoutes(r *gin.Engine) {
 
 		auth.PUT("changestatusleavetype/:id", middleware.PermissionMiddleware("change-status-leave-type"), controller.ChangeStatusLeaveType)
 
+		// Part
+		auth.POST("addpart", middleware.PermissionMiddleware("add-part"), controller.CreatePart)
+
+		auth.GET("viewpart", middleware.PermissionMiddleware("view-part"), controller.Getpart)
+
 	}
 }

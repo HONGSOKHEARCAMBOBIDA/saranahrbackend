@@ -35,7 +35,7 @@ type UserReqInsert struct {
 
 	Email string `form:"email" binding:"required,email"`
 
-	Password string `form:"password" binding:"required,min=8"`
+	Password string `form:"password" binding:"required"`
 
 	Gender int `form:"gender" binding:"required"`
 
@@ -86,6 +86,8 @@ type UserReqInsert struct {
 	Note string `form:"note"`
 
 	CurrencyID int `form:"currency_id" binding:"required"`
+
+	PartIDs []int `form:"part_ids" binding:"required"`
 }
 
 type UserReqUpdate struct {
@@ -98,6 +100,8 @@ type UserReqUpdate struct {
 	Contact string `json:"contact" gorm:"column:contact"`
 
 	RoleID int `json:"role_id"`
+
+	PartIDs []int `form:"part_ids" binding:"required"`
 }
 
 type UserResponse struct {
@@ -126,6 +130,8 @@ type UserResponse struct {
 	RoleName string `json:"role_name"`
 
 	IsActive bool `json:"is_active"`
+
+	UserPartResponse []UserPartResponse `json:"parts" gorm:"-"`
 }
 
 type UserResponseV2 struct {

@@ -193,6 +193,7 @@ func CheckIn(c *gin.Context) {
 	go helper.SendTelegramMessage(message)
 
 	share.ResponeSuccess(c, 200, "Check In Success")
+
 }
 
 func CheckOut(c *gin.Context) {

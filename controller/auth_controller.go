@@ -452,15 +452,6 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	if result.RowsAffected == 0 {
-
-		tx.Rollback()
-
-		share.RespondError(c, http.StatusBadRequest, "អ្នកប្រើប្រាស់រកមិនឃើញ")
-
-		return
-	}
-
 	// 2️⃣ Delete old parts
 	if err := tx.Where("user_id = ?", id).
 		Delete(&models.UserPart{}).Error; err != nil {
@@ -476,7 +467,6 @@ func UpdateUser(c *gin.Context) {
 	for _, partID := range updateuser.PartIDs {
 
 		if err := tx.Create(&models.UserPart{
-
 			UserID: id,
 			PartID: partID,
 		}).Error; err != nil {
@@ -571,12 +561,14 @@ func GetUser(c *gin.Context) {
 		for _, u := range users {
 			userIDs = append(userIDs, u.Id)
 		}
+		// Struct សម្រាប់ទទួលទិន្នន័យពី SQL
 		type partRow struct {
 			UserID   int
 			ID       int
 			PartID   int
 			PartName string
 		}
+
 		var rows []partRow
 		if err := config.DB.Raw(`
 		
@@ -588,6 +580,7 @@ func GetUser(c *gin.Context) {
 			share.RespondError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
+		//បង្កើត Map ដើម្បីរៀបចំ Part តាម User
 
 		partMap := make(map[int][]models.UserPartResponse)
 

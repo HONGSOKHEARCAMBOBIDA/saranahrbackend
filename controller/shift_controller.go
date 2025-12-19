@@ -58,18 +58,18 @@ func GetShiftByBranchID(c *gin.Context) {
 		share.RespondError(c, http.StatusNotFound, err.Error())
 		return
 	}
-	var resp []models.ShiftResponse
-	for _, s := range shifts {
-		resp = append(resp, models.ShiftResponse{
-			ID:        s.ID,
-			Name:      s.Name + " " + s.StartTime + " - " + s.EndTime,
-			StartTime: s.StartTime,
-			EndTime:   s.EndTime,
-			IsActive:  s.IsActive,
-			BranchID:  s.BranchID,
-		})
-	}
-	share.RespondDate(c, http.StatusOK, resp)
+	// var resp []models.ShiftResponse
+	// for _, s := range shifts {
+	// 	resp = append(resp, models.ShiftResponse{
+	// 		ID:        s.ID,
+	// 		Name:      s.Name + " " + s.StartTime + " - " + s.EndTime,
+	// 		StartTime: s.StartTime,
+	// 		EndTime:   s.EndTime,
+	// 		IsActive:  s.IsActive,
+	// 		BranchID:  s.BranchID,
+	// 	})
+	// }
+	share.RespondDate(c, http.StatusOK, shifts)
 }
 
 func UpdateShift(c *gin.Context) {

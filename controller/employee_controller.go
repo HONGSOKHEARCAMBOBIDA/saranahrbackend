@@ -240,7 +240,7 @@ func UpdateEmployee(c *gin.Context) {
 
 	if err == nil {
 
-		if !helper.ProtectImage(file) {
+		if !helper.ProtectImage(qrFile) {
 
 			share.RespondError(c, http.StatusBadRequest, "Image Not Allow")
 

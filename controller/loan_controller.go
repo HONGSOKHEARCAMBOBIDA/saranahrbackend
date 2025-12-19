@@ -3,6 +3,7 @@ package controller
 import (
 	"HRbackend/config"
 	"HRbackend/constant/share"
+	"HRbackend/helper"
 	models "HRbackend/model"
 	"net/http"
 
@@ -98,66 +99,69 @@ func CreateLoan(c *gin.Context) {
 
 func GetLoan(c *gin.Context) {
 
-	var loan []models.LoanResponse
+	var loans []models.LoanResponse
+	var employee models.Employee
+	var user models.User
 
 	employeeid := c.Query("employee_id")
-
 	branchid := c.Query("branch_id")
 
+	userID, ok := helper.GetUserID(c)
+	if !ok {
+		share.RespondError(c, http.StatusUnauthorized, "Please Login")
+		return
+	}
+
+	if err := config.DB.First(&user, userID).Error; err != nil {
+		share.RespondError(c, http.StatusNotFound, err.Error())
+		return
+	}
+
+	if err := config.DB.First(&employee, user.EmployeeID).Error; err != nil {
+		share.RespondError(c, http.StatusNotFound, err.Error())
+		return
+	}
+
 	db := config.DB.Table("loans").Select(`
-	
-					loans.id AS id,
-
-					employees.id AS employee_id,
-
-					employees.name_kh AS employee_name,
-
-					branches.id AS branch_id,
-
-					branches.name AS branch_name,
-
-					loans.loan_amount AS loan_amount,
-
-					loans.remaining_balance AS remaining_balance,
-
-					loans.status AS status,
-
-					c.id AS currency_id,
-
-					c.name AS currency_name,
-
-					c.code AS currency_code,
-
-					c.symbol AS currency_symbol
-
+		loans.id AS id,
+		employees.id AS employee_id,
+		employees.name_kh AS employee_name,
+		branches.id AS branch_id,
+		branches.name AS branch_name,
+		loans.loan_amount AS loan_amount,
+		loans.remaining_balance AS remaining_balance,
+		loans.status AS status,
+		c.id AS currency_id,
+		c.name AS currency_name,
+		c.code AS currency_code,
+		c.symbol AS currency_symbol
 	`).
 		Joins("INNER JOIN employees ON employees.id = loans.employee_id").
 		Joins("INNER JOIN branches ON branches.id = loans.branch_id").
 		Joins("INNER JOIN currencies c ON c.id = loans.currency_id")
 
-	if branchid != "" {
-
-		db = db.Where("loans.branch_id =?", branchid)
-
+	// Permission logic
+	if user.RoleID == 1 || user.RoleID == 4 || user.RoleID == 7 {
+		// admin / hr
+		if branchid != "" {
+			db = db.Where("loans.branch_id = ?", branchid)
+		}
+		if employeeid != "" {
+			db = db.Where("loans.employee_id = ?", employeeid)
+		}
+	} else {
+		// normal user
+		db = db.Where("loans.employee_id = ?", employee.ID)
 	}
-	if employeeid != "" {
 
-		db = db.Where("loans.employee_id =?", employeeid)
-
-	}
-
-	db = db.Order("loans.id desc")
-
-	if err := db.Scan(&loan).Error; err != nil {
-
+	if err := db.Order("loans.id DESC").Scan(&loans).Error; err != nil {
 		share.RespondError(c, http.StatusInternalServerError, err.Error())
-
 		return
 	}
 
-	share.RespondDate(c, 200, loan)
-
+	share.RespondDate(c, 200, loans)
 }
+
 func UpdateLoan(c *gin.Context) {
 
 	id := c.Param("id")
